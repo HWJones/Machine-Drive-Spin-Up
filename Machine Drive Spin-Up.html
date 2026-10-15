@@ -1,0 +1,1153 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Machine Drive Spin-Up</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Assemble a flywheel, belt and gear drive in 3D, analyse it, and spin it up from rest under M = k√t.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Courier+Prime:wght@400;700&display=swap">
+<style>
+/* Layout: drafting-paper workbench. 3D stage left, worksheet panel right; stacks below 980px.
+   Deliberately single-theme: the whole activity lives on graph paper, as in the source animation. */
+:root{
+  --paper:#f3f2ec; --sheet:#fffffd; --sheet-2:#f7f6f1; --ink:#1c1f23; --muted:#575d64; --rule:#d5d2c6;
+  --accent:#1f49a6; --accent-ink:#ffffff; --accent-soft:#dfe6f6;
+  --ok:#1b6e3f; --ok-soft:#e1f0e5; --bad:#ac2419; --bad-soft:#f8e3df; --warn:#7f5200; --warn-soft:#f7ecd4;
+  --note:#f8e68a; --note-ink:#2a2512;
+  --f-type:'Courier Prime','Courier New',ui-monospace,monospace;
+  --f-body:'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+*{box-sizing:border-box}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px}
+header.bar{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 20px;border-bottom:2px solid var(--ink);padding-bottom:10px}
+.brand h1{margin:0;font-family:var(--f-type);font-weight:700;font-size:26px;line-height:1.1;letter-spacing:-.01em;text-wrap:balance}
+.brand p{margin:3px 0 0;color:var(--muted);font-family:var(--f-type);font-size:13px}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.steps button{display:flex;align-items:baseline;gap:8px;border:1px solid var(--ink);background:var(--sheet);border-radius:3px;padding:6px 12px;cursor:pointer}
+.steps .n{font-family:var(--f-type);font-weight:700}
+.steps .t{font-weight:700;font-size:14px}
+.steps .s{font-size:12px;font-weight:700;color:var(--ok)}
+.steps button[aria-selected="true"]{background:var(--ink);color:var(--sheet)}
+.steps button[aria-selected="true"] .s{color:#9fe0b7}
+
+.main{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:12px;min-height:0}
+.stage{position:relative;min-height:0;border:1px solid var(--rule);border-radius:4px;overflow:hidden;background:var(--paper);touch-action:none}
+.stage canvas{display:block;width:100%;height:100%}
+.overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.plabel{position:absolute;left:0;top:0;font-family:var(--f-type);font-size:14px;color:var(--ink);white-space:nowrap;
+  text-shadow:0 0 3px var(--paper),0 0 3px var(--paper),0 0 6px var(--paper)}
+.plabel b{font-weight:700}
+.plabel.sel{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.flabel{position:absolute;left:0;top:0;font-family:var(--f-type);font-size:12.5px;font-weight:700;background:var(--sheet);border:1px solid var(--ink);padding:1px 6px;white-space:nowrap}
+.mark{position:absolute;left:0;top:0;display:flex;align-items:center;gap:3px;padding:2px 8px;border-radius:999px;font-weight:700;font-size:13px;border:2px solid var(--sheet)}
+.mark.bad{background:var(--bad);color:#fff} .mark.ok{background:var(--ok);color:#fff}
+
+.hud{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;gap:8px;pointer-events:none;align-items:flex-start}
+.hud > *{pointer-events:auto}
+.hint{background:rgba(255,255,253,.92);border:1px solid var(--rule);border-radius:3px;padding:6px 10px;font-size:12.5px;color:var(--muted);max-width:430px}
+kbd{font-family:var(--f-type);font-size:11.5px;border:1px solid var(--rule);border-bottom-width:2px;border-radius:3px;padding:0 4px;background:var(--sheet);color:var(--ink)}
+.viewbtns{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
+
+.sticky{position:absolute;right:16px;bottom:78px;width:236px;background:var(--note);color:var(--note-ink);font-family:var(--f-type);font-size:13.5px;line-height:1.4;
+  padding:16px 16px 18px;transform:rotate(-1.2deg);box-shadow:0 1px 1px rgba(0,0,0,.08),4px 8px 14px rgba(40,30,0,.22);pointer-events:none;transition:opacity .25s, transform .25s}
+.sticky p{margin:0 0 10px} .sticky p:last-child{margin:0}
+.sticky.flash{transform:rotate(-1.2deg) scale(1.03)}
+
+.toolbar{position:absolute;left:10px;right:10px;bottom:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;pointer-events:none}
+.toolbar > *{pointer-events:auto}
+.tgroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:rgba(255,255,253,.94);border:1px solid var(--rule);border-radius:4px;padding:5px}
+.btn{border:1px solid var(--ink);background:var(--sheet);border-radius:3px;padding:6px 11px;cursor:pointer;font-weight:700;font-size:13.5px;line-height:1.3}
+.btn:hover{background:var(--sheet-2)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn.icon{min-width:34px;padding:6px 8px;font-family:var(--f-type)}
+.btn-test{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-family:var(--f-type);font-size:18px;padding:9px 20px;border-radius:3px}
+.btn-test:hover{background:var(--accent);filter:brightness(1.1)}
+.btn-test.running{background:var(--sheet);color:var(--ink);border-color:var(--ink)}
+.seg{display:inline-flex;border:1px solid var(--ink);border-radius:3px;overflow:hidden}
+.seg button{border:0;background:var(--sheet);padding:6px 10px;cursor:pointer;font-weight:700;font-size:13px}
+.seg button + button{border-left:1px solid var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
+.check{display:inline-flex;gap:6px;align-items:center;font-size:13px;font-weight:700;padding:0 4px;cursor:pointer}
+.check input{width:16px;height:16px;accent-color:var(--accent)}
+.tgroup select{border:1px solid var(--rule);border-radius:3px;background:var(--sheet);padding:5px 6px;font-size:13px}
+.sm{font-size:12px;color:var(--muted);font-weight:700}
+
+.panel{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:4px}
+.sec{background:var(--sheet);border:1px solid var(--rule);border-radius:4px;padding:14px 16px;min-width:0}
+.sec h2{margin:0 0 8px;font-family:var(--f-type);font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.sec h3{margin:0 0 6px;font-family:var(--f-type);font-weight:700;font-size:19px;line-height:1.2;text-wrap:balance}
+.sec p{margin:0 0 8px} .sec p:last-child{margin-bottom:0}
+.sec ol,.sec ul{margin:0 0 8px;padding-left:20px} .sec li{margin:2px 0}
+.small{font-size:13px;color:var(--muted)}
+.mono{font-family:var(--f-type);font-variant-numeric:tabular-nums}
+.problem{font-size:14px}
+table.given{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px;font-variant-numeric:tabular-nums}
+table.given th{text-align:left;font-weight:700;padding:4px 6px 4px 0;border-bottom:1px solid var(--ink);vertical-align:top}
+table.given td{padding:4px 6px 4px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+table.given td:first-child{font-family:var(--f-type);font-weight:700;white-space:nowrap}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{border:1px solid var(--rule);background:var(--sheet);border-radius:3px;padding:4px 10px;cursor:pointer;font-size:13px;font-weight:700}
+.chip b{font-family:var(--f-type)}
+.chip[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset;color:var(--accent)}
+dl.props{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin:0 0 10px;font-size:13.5px}
+dl.props dt{color:var(--muted)} dl.props dd{margin:0;font-family:var(--f-type);font-variant-numeric:tabular-nums;text-align:right}
+.ctrl{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.pad{display:grid;grid-template-columns:repeat(3,36px);grid-template-rows:repeat(2,32px);gap:4px}
+.pad .btn{padding:0;display:grid;place-items:center}
+.ctrlcol{display:flex;flex-direction:column;gap:4px}
+.rowbtns{display:flex;gap:4px}
+.steprow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:13px}
+.status{font-size:13px;color:var(--muted);min-height:1.5em;margin:8px 0 0}
+
+table.dist{width:100%;border-collapse:collapse;font-size:13.5px}
+table.dist td{padding:3px 0;border-bottom:1px solid var(--rule)} table.dist tr:last-child td{border-bottom:0}
+table.dist td:last-child{text-align:right;font-family:var(--f-type);font-variant-numeric:tabular-nums}
+
+.feedback{border-radius:4px;padding:14px 16px;border:1px solid var(--rule);background:var(--sheet)}
+.feedback.bad{background:var(--bad-soft);border-color:var(--bad)}
+.feedback.ok{background:var(--ok-soft);border-color:var(--ok)}
+.feedback.warn{background:var(--warn-soft);border-color:var(--warn)}
+.fb-title{display:flex;gap:8px;align-items:flex-start;font-weight:700;font-size:15.5px;margin:0 0 6px}
+.fb-ico{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;flex:none;font-size:13px;font-weight:700;color:#fff;background:var(--muted)}
+.bad .fb-ico{background:var(--bad)} .ok .fb-ico{background:var(--ok)} .warn .fb-ico{background:var(--warn)}
+.issues{list-style:none;padding:0;margin:0 0 8px;display:flex;flex-direction:column;gap:8px}
+.issues li{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start}
+.issues .num{display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:999px;background:var(--bad);color:#fff;font-weight:700;font-size:12px;padding:0 4px}
+.feedback p{margin:0 0 8px} .feedback p:last-child{margin:0}
+
+form.calc{display:flex;flex-direction:column;gap:10px}
+.q{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:4px 10px;align-items:center;padding-bottom:10px;border-bottom:1px dashed var(--rule)}
+.q label{font-size:14px}
+.q .unit{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.q input,.q select{border:1px solid var(--rule);border-radius:3px;background:var(--sheet-2);padding:6px 8px;width:100%;font-family:var(--f-type);font-variant-numeric:tabular-nums}
+.q .verdict{grid-column:1/-1;font-size:13px;font-weight:700;min-height:0}
+.q .verdict:empty{display:none}
+.q .verdict.ok{color:var(--ok)} .q .verdict.bad{color:var(--bad)}
+.math{font-family:var(--f-type);font-size:13.5px}
+.rowend{display:flex;gap:8px;flex-wrap:wrap}
+
+.readouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;margin-bottom:10px}
+.readouts div{display:flex;flex-direction:column;border-top:1px solid var(--ink);padding-top:3px}
+.readouts span{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.readouts strong{font-family:var(--f-type);font-size:18px;font-variant-numeric:tabular-nums}
+.readouts .hero{grid-column:1/-1}
+.readouts .hero strong{font-size:26px}
+.plotwrap{position:relative;width:100%;aspect-ratio:16/10;max-width:100%}
+.plotwrap canvas{width:100%;height:100%;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+details.work summary,details.concepts summary{cursor:pointer;font-family:var(--f-type);font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+details.work ol{margin-top:10px;padding-left:20px} details.work li{margin:6px 0;font-size:14px}
+details.concepts dl{margin:10px 0 0} details.concepts dt{font-weight:700;margin-top:8px} details.concepts dd{margin:2px 0 0;font-size:14px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@media (max-width:980px){
+  .app{height:auto}
+  .main{grid-template-columns:minmax(0,1fr)}
+  .stage{height:68vh;min-height:440px}
+  .panel{overflow:visible}
+}
+@media (max-width:600px){
+  .hint{display:none}
+  .sticky{width:190px;font-size:12.5px;bottom:118px;right:10px;padding:12px}
+  .btn-test{font-size:16px;padding:8px 14px}
+}
+@media (prefers-reduced-motion: reduce){ .sticky{transition:none} }
+</style>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <h1>Machine Drive Spin-Up</h1>
+      <p>Flywheel A → belt → Disc B + pinion C → gearwheel D · M = k t<sup>0.5</sup></p>
+    </div>
+    <div class="steps" role="tablist" aria-label="Activity steps">
+      <button role="tab" data-step="1" aria-selected="true"><span class="n">1</span><span class="t">Assemble</span><span class="s" id="done1"></span></button>
+      <button role="tab" data-step="2" aria-selected="false"><span class="n">2</span><span class="t">Analyse</span><span class="s" id="done2"></span></button>
+      <button role="tab" data-step="3" aria-selected="false"><span class="n">3</span><span class="t">Spin up</span><span class="s" id="done3"></span></button>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="stage" id="stage" tabindex="0" role="application"
+      aria-label="3D drive workspace. Keys: 1 selects Flywheel A, 2 Disc B and pinion C, 3 Gearwheel D. Arrow keys move, Q and E rotate, Page Up and Page Down change height on the shaft, T tests the drive.">
+      <div class="overlay" id="overlay"></div>
+      <div class="hud">
+        <div class="hint">
+          Drag a part to move it. <kbd>Shift</kbd>+drag or Rotate mode turns it. Drag the paper to orbit, right-drag to pan, scroll to zoom.
+          Keys: <kbd>1</kbd>–<kbd>3</kbd> select, arrows move, <kbd>Q</kbd>/<kbd>E</kbd> rotate, <kbd>PgUp</kbd>/<kbd>PgDn</kbd> height, <kbd>T</kbd> test.
+        </div>
+        <div class="viewbtns" role="group" aria-label="Camera">
+          <button class="btn" id="viewAngled">3D view</button>
+          <button class="btn" id="viewTop">Plan view</button>
+          <button class="btn icon" id="zoomIn" aria-label="Zoom in">+</button>
+          <button class="btn icon" id="zoomOut" aria-label="Zoom out">−</button>
+        </div>
+      </div>
+      <div class="sticky" id="sticky" role="note" aria-live="polite"></div>
+      <div class="toolbar">
+        <div class="tgroup">
+          <span class="seg" role="group" aria-label="Drag action">
+            <button id="modeMove" aria-pressed="true">Move</button>
+            <button id="modeRotate" aria-pressed="false">Rotate</button>
+          </span>
+          <label class="check"><input type="checkbox" id="snap" checked> Snap into mesh</label>
+          <label class="check"><input type="checkbox" id="forces" checked> Forces</label>
+          <label class="sm" for="speed">Playback</label>
+          <select id="speed">
+            <option value="0.1">0.1 × real</option>
+            <option value="0.25" selected>0.25 × real</option>
+            <option value="0.5">0.5 × real</option>
+            <option value="1">Real time</option>
+          </select>
+          <button class="btn" id="reset">Reset parts</button>
+        </div>
+        <button class="btn btn-test" id="test">Test drive</button>
+      </div>
+    </div>
+
+    <aside class="panel" aria-label="Worksheet">
+      <section class="sec" aria-labelledby="probTitle">
+        <h2>The problem</h2>
+        <h3 id="probTitle">Time for gearwheel D to reach 200 rev/min</h3>
+        <p class="problem">Flywheel <b>A</b> is connected by a non-slip belt to uniform disc <b>B</b>. Pinion <b>C</b> is integral with B and meshes with gearwheel <b>D</b>. A is driven from rest by a torque <span class="math">M = k t<sup>0.5</sup></span>. Find the time for D to reach 200 rev/min.</p>
+        <div style="overflow-x:auto">
+        <table class="given">
+          <thead><tr><th>Part</th><th>Given</th></tr></thead>
+          <tbody>
+            <tr><td>A</td><td>Flywheel: m = 0.2 kg, radius 0.05 m, radius of gyration 0.03 m</td></tr>
+            <tr><td>B</td><td>Uniform disc: m = 0.3 kg, radius 0.1 m</td></tr>
+            <tr><td>C</td><td>Pinion on B: pitch radius 0.08 m, I = 3 × 10⁻³ kg m²</td></tr>
+            <tr><td>D</td><td>Gearwheel: pitch radius 0.20 m, I = 0.03 kg m²</td></tr>
+            <tr><td>M</td><td>k = 0.08 N m s<sup>−0.5</sup>, starting from rest</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </section>
+
+      <section class="sec" id="stepSec" aria-labelledby="stepTitle">
+        <h2>Your task</h2>
+        <h3 id="stepTitle"></h3>
+        <div id="stepBody"></div>
+      </section>
+
+      <section class="sec" id="calcSec" hidden aria-labelledby="calcTitle">
+        <h2 id="calcTitle">Working</h2>
+        <form class="calc" id="calc" novalidate>
+          <div class="q"><label for="q1">Speed ratio ω<sub>A</sub> / ω<sub>B</sub></label><input id="q1" inputmode="decimal"><span class="verdict" id="v1" aria-live="polite"></span></div>
+          <div class="q"><label for="q2">Speed ratio ω<sub>C</sub> / ω<sub>D</sub></label><input id="q2" inputmode="decimal"><span class="verdict" id="v2" aria-live="polite"></span></div>
+          <div class="q"><label for="q3">Direction of D compared with A</label>
+            <select id="q3"><option value="">Choose…</option><option value="same">Same direction</option><option value="opp">Opposite direction</option></select>
+            <span class="verdict" id="v3" aria-live="polite"></span></div>
+          <div class="q"><label for="q4">Moment of inertia of A, I<sub>A</sub></label><input id="q4" inputmode="decimal"><span class="unit">× 10⁻³ kg m²</span><span class="verdict" id="v4" aria-live="polite"></span></div>
+          <div class="q"><label for="q5">Equivalent inertia of the whole drive, referred to shaft A</label><input id="q5" inputmode="decimal"><span class="unit">× 10⁻³ kg m²</span><span class="verdict" id="v5" aria-live="polite"></span></div>
+          <div class="q"><label for="q6">Time for D to reach 200 rev/min</label><input id="q6" inputmode="decimal"><span class="unit">seconds. This is your prediction for the spin-up test.</span><span class="verdict" id="v6" aria-live="polite"></span></div>
+          <div class="rowend">
+            <button class="btn" type="submit" id="checkBtn">Check my working</button>
+          </div>
+        </form>
+        <details class="work" id="work" hidden>
+          <summary>Worked solution</summary>
+          <ol>
+            <li>I<sub>A</sub> = m k² = 0.2 × 0.03² = 1.8 × 10⁻⁴ kg m². I<sub>B</sub> = ½ m r² = ½ × 0.3 × 0.1² = 1.5 × 10⁻³ kg m².</li>
+            <li>Belt: ω<sub>A</sub> r<sub>A</sub> = ω<sub>B</sub> r<sub>B</sub>, so ω<sub>B</sub> = 0.5 ω<sub>A</sub>. B and C share a shaft: ω<sub>C</sub> = ω<sub>B</sub>.</li>
+            <li>Mesh: ω<sub>C</sub> r<sub>C</sub> = ω<sub>D</sub> r<sub>D</sub>, so ω<sub>D</sub> = 0.4 ω<sub>C</sub> = 0.2 ω<sub>A</sub>. The open belt keeps direction; the external mesh reverses it, so D turns opposite to A.</li>
+            <li>Equivalent inertia at A (kinetic energy): I<sub>eq</sub> = I<sub>A</sub> + (I<sub>B</sub> + I<sub>C</sub>)(0.5)² + I<sub>D</sub>(0.2)² = 0.18 + 1.125 + 1.2 = 2.505 × 10⁻³ kg m².</li>
+            <li>k t<sup>0.5</sup> = I<sub>eq</sub> dω<sub>A</sub>/dt. Integrating from rest: ω<sub>A</sub> = 2k t<sup>1.5</sup> / (3 I<sub>eq</sub>).</li>
+            <li>ω<sub>D</sub> = 200 × 2π / 60 = 20.94 rad/s, so ω<sub>A</sub> = 104.7 rad/s.</li>
+            <li>t<sup>1.5</sup> = 3 I<sub>eq</sub> ω<sub>A</sub> / 2k = 4.919, so <b>t ≈ 2.89 s</b>.</li>
+          </ol>
+        </details>
+      </section>
+
+      <section class="sec" id="runSec" hidden aria-labelledby="runTitle">
+        <h2 id="runTitle">Spin-up from rest</h2>
+        <div class="readouts" aria-live="off">
+          <div class="hero"><span>Gearwheel D</span><strong id="rD">0.0 rev/min</strong></div>
+          <div><span>Time t</span><strong id="rT">0.000 s</strong></div>
+          <div><span>Torque M</span><strong id="rM">0.000 N m</strong></div>
+          <div><span>Flywheel A</span><strong id="rA">0 rev/min</strong></div>
+          <div><span>B and C</span><strong id="rB">0 rev/min</strong></div>
+          <div><span>Belt T₁ − T₂</span><strong id="rTen">0.00 N</strong></div>
+          <div><span>Tooth force C on D</span><strong id="rF">0.00 N</strong></div>
+        </div>
+        <div class="plotwrap"><canvas id="plot" aria-label="Graph of gearwheel D speed in rev/min against time"></canvas></div>
+        <div class="legend"><span><i style="border-color:#1f49a6"></i>ω<sub>D</sub>(t)</span><span><i style="border-color:#1c1f23;border-top-style:dashed"></i>200 rev/min</span><span><i style="border-color:#c27c00;border-top-style:dashed"></i>your prediction</span></div>
+      </section>
+
+      <section class="sec" aria-labelledby="selTitle">
+        <h2 id="selTitle">Selected part</h2>
+        <div class="chips" id="chips" role="group" aria-label="Select part"></div>
+        <div id="props"><p class="small">Click a part, or use the buttons above, to see its properties.</p></div>
+        <div id="controls" hidden>
+          <div class="ctrl">
+            <div class="ctrlcol" id="moveCol">
+              <span class="small">Move</span>
+              <div class="pad">
+                <span></span><button class="btn" id="mvUp" aria-label="Move away (plus y)">▲</button><span></span>
+                <button class="btn" id="mvLeft" aria-label="Move left (minus x)">◀</button><button class="btn" id="mvDown" aria-label="Move toward you (minus y)">▼</button><button class="btn" id="mvRight" aria-label="Move right (plus x)">▶</button>
+              </div>
+            </div>
+            <div class="ctrlcol">
+              <span class="small">Rotate</span>
+              <div class="rowbtns"><button class="btn icon" id="rotACW" aria-label="Rotate anticlockwise">↺</button><button class="btn icon" id="rotCW" aria-label="Rotate clockwise">↻</button></div>
+            </div>
+            <div class="ctrlcol" id="liftCol">
+              <span class="small">Height</span>
+              <div class="rowbtns"><button class="btn icon" id="raise" aria-label="Raise on shaft">⤒</button><button class="btn icon" id="lower" aria-label="Lower on shaft">⤓</button></div>
+            </div>
+          </div>
+          <div class="steprow">
+            <span class="small">Step size</span>
+            <span class="seg" role="group" aria-label="Step size">
+              <button data-stepsize="fine" aria-pressed="false">0.1 mm · 0.25°</button>
+              <button data-stepsize="normal" aria-pressed="true">1 mm · 1°</button>
+              <button data-stepsize="coarse" aria-pressed="false">10 mm · 5°</button>
+            </span>
+          </div>
+        </div>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="sec" aria-labelledby="distTitle">
+        <h2 id="distTitle">Measured on the plate</h2>
+        <table class="dist"><tbody id="dist"></tbody></table>
+      </section>
+
+      <section class="feedback" id="feedback" aria-live="polite"></section>
+
+      <section class="sec">
+        <details class="concepts">
+          <summary>Engineering notes</summary>
+          <dl>
+            <dt>Non-slip belt</dt><dd>Both pulleys share the belt's linear speed: ω<sub>A</sub> r<sub>A</sub> = ω<sub>B</sub> r<sub>B</sub>. An open belt keeps the direction of rotation.</dd>
+            <dt>Integral parts</dt><dd>B and C are one rigid body on one shaft, so they always have the same angular velocity and their inertias add.</dd>
+            <dt>Gear mesh</dt><dd>Pitch circles roll without slip: ω<sub>C</sub> r<sub>C</sub> = ω<sub>D</sub> r<sub>D</sub>. External gears reverse direction. Centre distance = r<sub>C</sub> + r<sub>D</sub>. Here C has 40 teeth and D has 100, both module 4 mm.</dd>
+            <dt>Equivalent inertia</dt><dd>Equate kinetic energy: ½ I<sub>eq</sub> ω<sub>A</sub>² = Σ ½ I<sub>i</sub> ω<sub>i</sub>², so each inertia is scaled by (ω<sub>i</sub>/ω<sub>A</sub>)².</dd>
+            <dt>Belt tension</dt><dd>The driver pulls the belt in on its tight side. The net belt pull T₁ − T₂ is what accelerates B, C and D.</dd>
+            <dt>Gear reaction</dt><dd>C pushes D forward with a tangential tooth force F; D pushes back on C with an equal and opposite force. F r<sub>D</sub> = I<sub>D</sub> α<sub>D</sub>.</dd>
+          </dl>
+        </details>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+'use strict';
+/* =====================================================================
+   Machine Drive Spin-Up
+   Plate coordinates in mm: x right, y away from the viewer, angles CCW
+   positive seen from above (clockwise = negative). Three.js mapping:
+   world.x = x, world.z = -y, world.y = height.
+   Model scale: 1 mm in the scene = 1 mm on the real parts (rA = 50 mm, etc.).
+   ===================================================================== */
+
+// <core> --------------------------------------------------------------
+const MOD = 4, PA = 20 * Math.PI / 180, BACKLASH = 0.6, TOL_D = 0.5, RN = 256;
+const SHAFT_CLEAR = 10.5, LIFT = 11;
+const inv = a => Math.tan(a) - a;
+const frac = x => x - Math.floor(x);
+const wrapHalf = x => x - Math.round(x);
+
+/* Drive data from the problem (SI). */
+const P = { mA: 0.2, rA: 0.05, kA: 0.03, mB: 0.3, rB: 0.1, rC: 0.08, IC: 3e-3, rD: 0.20, ID: 0.03, k: 0.08, target: 200 };
+const PHYS = (() => {
+  const IA = P.mA * P.kA ** 2, IB = 0.5 * P.mB * P.rB ** 2;
+  const nB = P.rA / P.rB;                    // ωB / ωA (open belt, same sense)
+  const nD = nB * P.rC / P.rD;               // ωD / ωA (magnitude; opposite sense)
+  const Ieq = IA + (IB + P.IC) * nB ** 2 + P.ID * nD ** 2;
+  const wA = t => 2 * P.k / (3 * Ieq) * Math.pow(t, 1.5);          // rad/s
+  const thA = t => 4 * P.k / (15 * Ieq) * Math.pow(t, 2.5);        // rad
+  const wDtarget = P.target * 2 * Math.PI / 60;
+  const tTarget = Math.pow(3 * Ieq * (wDtarget / nD) / (2 * P.k), 2 / 3);
+  // Loads at time t: belt net pull and tooth force (N)
+  const loads = t => {
+    const M = P.k * Math.sqrt(t), aA = M / Ieq;
+    return { M, aA, beltNet: (M - IA * aA) / P.rA, toothF: P.ID * (nD * aA) / P.rD };
+  };
+  return { IA, IB, nB, nD, Ieq, wA, thA, tTarget, loads };
+})();
+
+/* Involute spur profile (module MOD) with tooth 0 centred on angle 0. */
+function makeProfile(z) {
+  const r = MOD * z / 2, rb = r * Math.cos(PA), ra = r + MOD, rf = r - 1.25 * MOD;
+  const s = Math.PI * MOD / 2 - BACKLASH / 2;
+  const psi = rho => s / (2 * r) + inv(PA) - inv(Math.acos(Math.min(1, rb / rho)));
+  const p = 2 * Math.PI / z, flank = [];
+  if (rf < rb) flank.push([rf, psi(rf)]);
+  const r0 = Math.max(rf, rb), NF = 10;
+  for (let i = 0; i <= NF; i++) { const t = i / NF; const rho = r0 + (ra - r0) * (t * t * 0.35 + t * 0.65); flank.push([rho, psi(rho)]); }
+  const pTip = psi(ra), pRoot = psi(rf), pts = [];
+  const add = (rho, a) => pts.push([rho * Math.cos(a), rho * Math.sin(a), rho]);
+  for (let k = 0; k < z; k++) {
+    const c = k * p;
+    for (const [rho, ps] of flank) add(rho, c - ps);
+    for (let j = 1; j < 3; j++) add(ra, c - pTip + 2 * pTip * j / 3);
+    for (let i = flank.length - 1; i >= 0; i--) add(flank[i][0], c + flank[i][1]);
+    for (let j = 1; j < 3; j++) add(rf, c + pRoot + (p - 2 * pRoot) * j / 3);
+  }
+  const Rtab = new Float64Array(RN);
+  for (let i = 0; i < RN; i++) {
+    const t = i / (RN - 1) * p / 2;
+    if (t <= pTip) Rtab[i] = ra; else if (t >= pRoot) Rtab[i] = rf;
+    else { let lo = r0, hi = ra; for (let n = 0; n < 40; n++) { const mid = (lo + hi) / 2; if (psi(mid) > t) lo = mid; else hi = mid; } Rtab[i] = (lo + hi) / 2; }
+  }
+  return { z, r, rb, ra, rf, p, pts, Rtab };
+}
+const profileCache = new Map();
+const profile = z => { if (!profileCache.has(z)) profileCache.set(z, makeProfile(z)); return profileCache.get(z); };
+function Rlocal(pf, ang) {
+  const p = pf.p; let t = ang % p; if (t < 0) t += p; if (t > p / 2) t = p - t;
+  const f = t / (p / 2) * (RN - 1), i = Math.min(RN - 2, Math.floor(f)), w = f - i;
+  return pf.Rtab[i] * (1 - w) + pf.Rtab[i + 1] * w;
+}
+
+/* A part is a rigid body on one vertical shaft, made of layers stacked
+   along the shaft. Each layer is a plain disc or a spur gear. */
+function makeLayers(defs) { return defs.map(l => l.kind === 'gear' ? { ...l, pf: profile(l.z), R: profile(l.z).ra } : { ...l, R: l.r }); }
+function layerInside(l, s, x, y, margin) {
+  const dx = x - s.u, dy = y - s.v, rho = Math.hypot(dx, dy);
+  if (l.kind === 'disc') return rho < l.r + margin;
+  if (rho >= l.pf.ra + margin) return false;
+  if (rho <= l.pf.rf + margin) return true;
+  return rho < Rlocal(l.pf, Math.atan2(dy, dx) - s.theta) + margin;
+}
+function gearPtsIn(lg, sg, lo, so) {           // any outline point of gear lg inside layer lo
+  const c = Math.cos(sg.theta), sn = Math.sin(sg.theta), pts = lg.pf.pts;
+  const minRho = Math.hypot(so.u - sg.u, so.v - sg.v) - lo.R;
+  for (let k = 0; k < pts.length; k++) {
+    const p = pts[k]; if (p[2] < minRho) continue;
+    if (layerInside(lo, so, sg.u + p[0] * c - p[1] * sn, sg.v + p[0] * sn + p[1] * c, -0.02)) return true;
+  }
+  return false;
+}
+function layersCollide(l1, s1, l2, s2) {
+  const d = Math.hypot(s2.u - s1.u, s2.v - s1.v);
+  if (d >= l1.R + l2.R) return false;
+  if (l1.kind === 'disc' && l2.kind === 'disc') return true;
+  if (l1.kind === 'gear' && l2.kind === 'gear') return gearPtsIn(l1, s1, l2, s2) || gearPtsIn(l2, s2, l1, s1);
+  const [lg, sg, lc, sc] = l1.kind === 'gear' ? [l1, s1, l2, s2] : [l2, s2, l1, s1];
+  if (d - lc.r < lg.pf.rf) return true;
+  return gearPtsIn(lg, sg, lc, sc);
+}
+const zOverlap = (a0, a1, b0, b1) => a0 < b1 - 1e-6 && b0 < a1 - 1e-6;
+function partsCollide(p, sp, q, sq) {
+  for (const l of q.layers) if (layerInside(l, sq, sp.u, sp.v, SHAFT_CLEAR)) return true;  // p's shaft through q
+  for (const l of p.layers) if (layerInside(l, sp, sq.u, sq.v, SHAFT_CLEAR)) return true;
+  for (const a of p.layers) for (const b of q.layers)
+    if (zOverlap(sp.h + a.dz0, sp.h + a.dz1, sq.h + b.dz0, sq.h + b.dz1) && layersCollide(a, sp, b, sq)) return true;
+  return false;
+}
+function phaseErr(la, sa, lb, sb) {
+  const phi = Math.atan2(sb.v - sa.v, sb.u - sa.u);
+  return wrapHalf(frac((phi - sa.theta) / la.pf.p) + frac((phi + Math.PI - sb.theta) / lb.pf.p) - 0.5);
+}
+/* Open-belt loop around circle 1 (c1, r1) and circle 2 (c2, r2), traversed CCW.
+   Returns sampled points and cumulative length, plus the two straight spans. */
+function beltLoop(c1, r1, c2, r2, n) {
+  const dx = c2.u - c1.u, dy = c2.v - c1.v, d = Math.hypot(dx, dy), phi = Math.atan2(dy, dx);
+  const psi = Math.acos(Math.max(-1, Math.min(1, (r1 - r2) / d)));
+  const pts = [], arc = (c, r, a0, a1) => { const m = Math.max(8, Math.round(n * (a1 - a0) / (2 * Math.PI))); for (let i = 0; i <= m; i++) { const a = a0 + (a1 - a0) * i / m; pts.push([c.u + r * Math.cos(a), c.v + r * Math.sin(a)]); } };
+  arc(c1, r1, phi + psi, phi + 2 * Math.PI - psi);
+  arc(c2, r2, phi - psi, phi + psi);
+  const len = [0]; for (let i = 1; i <= pts.length; i++) { const a = pts[i - 1], b = pts[i % pts.length]; len.push(len[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  const t1 = a => [c1.u + r1 * Math.cos(a), c1.v + r1 * Math.sin(a)], t2 = a => [c2.u + r2 * Math.cos(a), c2.v + r2 * Math.sin(a)];
+  const spans = [[t1(phi - psi), t2(phi - psi)], [t2(phi + psi), t1(phi + psi)]];
+  return { pts, len, spans, total: len[len.length - 1] };
+}
+function segPointDist(a, b, p) {
+  const vx = b[0] - a[0], vy = b[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * vx + (p[1] - a[1]) * vy) / (vx * vx + vy * vy)));
+  return Math.hypot(a[0] + vx * t - p[0], a[1] + vy * t - p[1]);
+}
+// </core> -------------------------------------------------------------
+
+/* ------------------------------ parts ------------------------------ */
+const BELT_Z0 = 0, BELT_Z1 = 20, C_Z0 = 22;           // belt runs on disc B (bottom); pinion C sits on top of B
+const DEFS = [
+  { key: 'A', short: 'A', name: 'Flywheel A', layers: [{ kind: 'disc', r: 50, dz0: 0, dz1: 20 }], maxH: 22, color: 0xe7e8e9, labels: [{ html: 'Flywheel <b>A</b>', du: 62, dv: 0 }] },
+  { key: 'BC', short: 'B+C', name: 'Disc B + pinion C', fixed: true, layers: [{ kind: 'disc', r: 100, dz0: BELT_Z0, dz1: BELT_Z1 }, { kind: 'gear', z: 40, dz0: C_Z0, dz1: C_Z0 + 20 }], maxH: 0, color: 0xdcdddf, color2: 0x6d737a,
+    labels: [{ html: 'Disc <b>B</b>', du: 112, dv: 40 }, { html: 'Gear <b>C</b>', du: 0, dv: -36, top: true }] },
+  { key: 'D', short: 'D', name: 'Gearwheel D', layers: [{ kind: 'gear', z: 100, dz0: 0, dz1: 20 }], maxH: 33, color: 0x60666e, labels: [{ html: 'Gearwheel <b>D</b>', du: 160, dv: -180 }] },
+];
+const START = [{ u: 300, v: 210, h: 11 }, { u: -200, v: 160, h: 0 }, { u: 230, v: -200, h: 0 }];
+const BOUNDS = { u: 520, v: 380 };
+const STEPS = { fine: { mm: 0.1, deg: 0.25 }, normal: { mm: 1, deg: 1 }, coarse: { mm: 10, deg: 5 } };
+
+let parts = [], selected = null, step = 1, mode = 'move', snapOn = true, showForces = true;
+let playback = 0.25, stepSize = 'normal', drag = null, marks = [], dirty = true;
+let run = null;           // { kind:'demo'|'spin', t0, th0[], simT, reached }
+const done = new Set(); let checks = 0, failedTests = 0;
+
+const $ = s => document.querySelector(s);
+const stage = $('#stage'), overlay = $('#overlay');
+const fmt = (x, dp = 1) => (+x).toFixed(dp);
+const fmtT = (x, dp = 1) => String(+(+x).toFixed(dp));
+
+/* ------------------------------ scene ------------------------------ */
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.insertBefore(renderer.domElement, overlay);
+renderer.domElement.setAttribute('aria-hidden', 'true');
+
+const PAPER = 0xf3f2ec;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(PAPER);
+scene.fog = new THREE.Fog(PAPER, 1900, 3600);
+const camera = new THREE.PerspectiveCamera(34, 1, 5, 8000);
+const VIEW_ANGLED = new THREE.Vector3(60, 820, 860), VIEW_TOP = new THREE.Vector3(0, 1500, 0.01);
+camera.position.copy(VIEW_ANGLED);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(40, 0, 0);
+controls.enableDamping = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+controls.dampingFactor = 0.12; controls.minDistance = 200; controls.maxDistance = 2600; controls.maxPolarAngle = 1.45;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0xb9b4a5, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 0.55);
+sun.position.set(-300, 900, 450); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -700, right: 700, top: 600, bottom: -600, near: 100, far: 2200 });
+sun.shadow.radius = 4; scene.add(sun);
+
+// Graph paper: 10 mm squares with 50 mm majors
+(function paper() {
+  const c = document.createElement('canvas'); c.width = c.height = 500; const x = c.getContext('2d');
+  x.fillStyle = '#f3f2ec'; x.fillRect(0, 0, 500, 500);
+  for (let i = 0; i <= 50; i++) { const p = i * 10 + 0.5; x.strokeStyle = i % 5 === 0 ? 'rgba(80,110,140,.28)' : 'rgba(80,110,140,.12)'; x.lineWidth = i % 5 === 0 ? 1.6 : 1; x.beginPath(); x.moveTo(p, 0); x.lineTo(p, 500); x.moveTo(0, p); x.lineTo(500, p); x.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(16, 16); t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshStandardMaterial({ map: t, roughness: 1, metalness: 0 }));
+  m.rotation.x = -Math.PI / 2; m.receiveShadow = true; scene.add(m);
+})();
+
+const INK = 0x24272b;
+const edgeMat = new THREE.LineBasicMaterial({ color: INK, transparent: true, opacity: 0.55 });
+const steel = new THREE.MeshStandardMaterial({ color: 0xb7bcc1, metalness: 0.6, roughness: 0.32 });
+const dark = new THREE.MeshStandardMaterial({ color: 0x4c5258, metalness: 0.5, roughness: 0.4 });
+const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
+
+function ring(rOut, rIn, segs = 64) { const s = new THREE.Shape(); s.absarc(0, 0, rOut, 0, Math.PI * 2, false); const h = new THREE.Path(); h.absarc(0, 0, rIn, 0, Math.PI * 2, true); s.holes.push(h); return s; }
+function gearShape(pf, spokes) {
+  const s = new THREE.Shape(); pf.pts.forEach((p, i) => i ? s.lineTo(p[0], p[1]) : s.moveTo(p[0], p[1])); s.closePath();
+  const bore = new THREE.Path(); bore.absarc(0, 0, 5.6, 0, Math.PI * 2, true); s.holes.push(bore);
+  if (spokes) {               // five spoked windows, as on gearwheel D
+    const rIn = 34, rOut = pf.rf - 16, w = 12, n = 5;
+    for (let k = 0; k < n; k++) {
+      const a0 = k * 2 * Math.PI / n, a1 = (k + 1) * 2 * Math.PI / n, h = new THREE.Path();
+      const o0 = a0 + Math.asin(w / rOut), o1 = a1 - Math.asin(w / rOut), i0 = a0 + Math.asin(w / rIn), i1 = a1 - Math.asin(w / rIn);
+      h.moveTo(rOut * Math.cos(o0), rOut * Math.sin(o0)); h.absarc(0, 0, rOut, o0, o1, false);
+      h.lineTo(rIn * Math.cos(i1), rIn * Math.sin(i1)); h.absarc(0, 0, rIn, i1, i0, true); h.closePath();
+      s.holes.push(h);
+    }
+  }
+  return s;
+}
+function extrude(shape, depth, curve = 48) { const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments: curve }); g.rotateX(-Math.PI / 2); return g; }
+function withEdges(mesh, thr = 28) { const e = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, thr), edgeMat); mesh.add(e); return mesh; }
+
+/* Rotation-direction arrow drawn flat above a part (as in the source animation). */
+function makeArrow(R) {
+  const g = new THREE.Group(), inner = new THREE.Group(), mat = new THREE.MeshBasicMaterial({ color: INK });
+  const arcLen = 4.2, a0 = 0.6;
+  const tor = new THREE.Mesh(new THREE.TorusGeometry(R, 2.2, 8, 64, arcLen), mat); tor.rotation.z = a0;
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(7, 18, 16), mat);
+  const ae = a0 + arcLen; cone.position.set(R * Math.cos(ae), R * Math.sin(ae), 0); cone.rotation.z = ae;
+  inner.add(tor, cone); g.add(inner); g.rotation.x = -Math.PI / 2; g.visible = false;
+  g.userData.inner = inner; scene.add(g); return g;
+}
+function setArrow(arrow, u, v, y, sense) { arrow.position.set(u, y, -v); arrow.userData.inner.scale.y = sense < 0 ? -1 : 1; arrow.visible = true; }
+
+const pickables = [];
+function createPart(i) {
+  const def = DEFS[i], p = { i, def, key: def.key, name: def.name, layers: makeLayers(def.layers), u: 0, v: 0, theta: 0, h: 0 };
+  p.group = new THREE.Group();
+  const mats = [];
+  def.layers.forEach((l, li) => {
+    const L = p.layers[li];
+    const mat = new THREE.MeshStandardMaterial({ color: (L.kind === 'gear' && def.color2 !== undefined) ? def.color2 : def.color, metalness: 0.35, roughness: 0.45 }); mats.push(mat);
+    const geo = L.kind === 'gear' ? extrude(gearShape(L.pf, def.key === 'D'), l.dz1 - l.dz0, 12) : extrude(ring(l.r, 5.6), l.dz1 - l.dz0, 64);
+    const mesh = withEdges(new THREE.Mesh(geo, mat)); mesh.position.y = l.dz0; mesh.castShadow = mesh.receiveShadow = true;
+    mesh.userData.part = p; pickables.push(mesh); p.group.add(mesh);
+    // hub boss
+    const hub = withEdges(new THREE.Mesh(extrude(ring(L.kind === 'gear' && L.pf.z > 60 ? 30 : 14, 5.6), l.dz1 - l.dz0 + 2, 32), mat));
+    hub.position.y = l.dz0; hub.userData.part = p; pickables.push(hub); p.group.add(hub);
+  });
+  if (def.key === 'BC') {      // spacer between pinion C and disc B
+    const sp = withEdges(new THREE.Mesh(extrude(ring(26, 5.6), C_Z0 - BELT_Z1, 32), mats[1])); sp.position.y = BELT_Z1; p.group.add(sp);
+  }
+  // timing mark on the top layer
+  const top = p.layers[p.layers.length - 1], mk = new THREE.Mesh(new THREE.BoxGeometry(14, 0.6, 3), def.key === 'D' ? white : dark);
+  mk.position.set((top.kind === 'gear' ? top.pf.rf : top.r) - 12, top.dz1 + 0.3, 0); p.group.add(mk);
+  p.mats = mats;
+  p.shaft = new THREE.Group();
+  const topZ = Math.max(...def.layers.map(l => l.dz1)) + def.maxH + 14;
+  const sh = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, topZ, 20), steel); sh.position.y = topZ / 2; sh.castShadow = true;
+  const foot = withEdges(new THREE.Mesh(new THREE.CylinderGeometry(16, 18, 6, 32), dark)); foot.position.y = 3;
+  p.collar = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 1, 24), dark); p.collar.castShadow = true;
+  p.shaft.add(sh, foot, p.collar);
+  scene.add(p.group, p.shaft);
+  p.labels = def.labels.map(lb => { const el = document.createElement('div'); el.className = 'plabel'; el.innerHTML = lb.html; el.setAttribute('aria-hidden', 'true'); overlay.appendChild(el); return { el, lb }; });
+  const arrowR = { A: 32, BC: 70, D: 120 }[def.key];
+  p.arrow = makeArrow(arrowR);
+  return p;
+}
+function syncPart(p) {
+  p.group.position.set(p.u, p.h + 6, -p.v); p.group.rotation.y = p.theta;
+  p.shaft.position.set(p.u, 0, -p.v);
+  p.collar.visible = p.h > 0; p.collar.scale.y = Math.max(0.01, p.h); p.collar.position.y = 6 + p.h / 2;
+  dirty = true;
+}
+const stateOf = p => ({ u: p.u, v: p.v, theta: p.theta, h: p.h });
+const PART_BASE = 6;   // parts sit on 6 mm bearing feet
+
+/* ------------------------------ belt ------------------------------ */
+const beltMat = new THREE.MeshStandardMaterial({ color: 0x3a3e43, roughness: 0.8, metalness: 0.05 });
+const beltBadMat = new THREE.MeshStandardMaterial({ color: 0xb33a2c, roughness: 0.8 });
+let beltMesh = null, beltKey = '', beltInfo = null;
+const tickGeo = new THREE.BoxGeometry(2, 14, 6), tickMat = new THREE.MeshBasicMaterial({ color: 0xe9e6da });
+const ticks = Array.from({ length: 10 }, () => { const m = new THREE.Mesh(tickGeo, tickMat); m.visible = false; scene.add(m); return m; });
+
+function beltState() {
+  const [A, BC, D] = parts;
+  const zA0 = A.h, zB0 = BC.h + BELT_Z0, d = Math.hypot(BC.u - A.u, BC.v - A.v);
+  const res = { inPlane: zA0 === zB0, partial: Math.abs(zA0 - zB0) < 20 && zA0 !== zB0, d, fits: false, clear: true, hit: null };
+  if (!res.inPlane || d < 150 + 20 || d > 720) return res;
+  res.fits = true;
+  const loop = beltLoop({ u: A.u, v: A.v }, 50, { u: BC.u, v: BC.v }, 100, 96);
+  res.loop = loop;
+  for (const q of [D]) {
+    const near = loop.spans.some(([a, b]) => segPointDist(a, b, [q.u, q.v]) < 12);
+    const body = q.layers.some(l => zOverlap(q.h + l.dz0, q.h + l.dz1, BELT_Z0 + BC.h, BELT_Z1 + BC.h) && loop.spans.some(([a, b]) => segPointDist(a, b, [q.u, q.v]) < l.R + 2));
+    if (near || body) { res.clear = false; res.hit = q; }
+  }
+  return res;
+}
+function updateBelt() {
+  beltInfo = beltState();
+  const [A, BC] = parts;
+  const key = beltInfo.fits ? `${A.u.toFixed(2)},${A.v.toFixed(2)},${BC.h},${beltInfo.clear}` : '';
+  if (key === beltKey) return; beltKey = key;
+  if (beltMesh) { scene.remove(beltMesh); beltMesh.geometry.dispose(); beltMesh = null; }
+  if (!beltInfo.fits) { ticks.forEach(t => t.visible = false); return; }
+  const outer = beltLoop({ u: A.u, v: A.v }, 53, { u: BC.u, v: BC.v }, 103, 128), innerL = beltLoop({ u: A.u, v: A.v }, 50.2, { u: BC.u, v: BC.v }, 100.2, 128);
+  const s = new THREE.Shape(outer.pts.map(p => new THREE.Vector2(p[0], p[1])));
+  s.holes.push(new THREE.Path(innerL.pts.map(p => new THREE.Vector2(p[0], p[1])).reverse()));
+  const g = new THREE.ExtrudeGeometry(s, { depth: 16, bevelEnabled: false, curveSegments: 4 }); g.rotateX(-Math.PI / 2);
+  beltMesh = new THREE.Mesh(g, beltInfo.clear ? beltMat : beltBadMat); beltMesh.castShadow = true;
+  beltMesh.position.y = PART_BASE + BC.h + BELT_Z0 + 2; scene.add(beltMesh);
+  dirty = true;
+}
+function placeTicks() {
+  if (!beltInfo || !beltInfo.fits) return;
+  const A = parts[0], L = beltInfo.loop, y = PART_BASE + parts[1].h + BELT_Z0 + 10;
+  const travel = A.theta * 50;   // belt advances with flywheel rim (CCW = positive along loop)
+  ticks.forEach((t, k) => {
+    let s = ((k / ticks.length) * L.total + travel) % L.total; if (s < 0) s += L.total;
+    let i = 1; while (i < L.len.length - 1 && L.len[i] < s) i++;
+    const a = L.pts[i - 1], b = L.pts[i % L.pts.length], f = (s - L.len[i - 1]) / Math.max(1e-6, L.len[i] - L.len[i - 1]);
+    const x = a[0] + (b[0] - a[0]) * f, yv = a[1] + (b[1] - a[1]) * f, ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+    const nx = Math.sin(ang), ny = -Math.cos(ang);   // outward normal of a CCW loop
+    t.position.set(x + nx * 2.8, y, -(yv + ny * 2.8)); t.rotation.y = ang; t.visible = true;
+  });
+}
+
+/* --------------------------- physical rules --------------------------- */
+function collidesAny(p, s, ov) { for (const o of parts) { if (o === p) continue; if (partsCollide(p, s, o, (ov && ov.get(o)) || stateOf(o))) return o; } return null; }
+function clampPos(u, v) { return [Math.max(-BOUNDS.u, Math.min(BOUNDS.u, u)), Math.max(-BOUNDS.v, Math.min(BOUNDS.v, v))]; }
+const gearLayer = p => p.layers.find(l => l.kind === 'gear');
+function cdState() {
+  const [, BC, D] = parts, lc = gearLayer(BC), ld = gearLayer(D);
+  const d = Math.hypot(D.u - BC.u, D.v - BC.v), a = lc.pf.r + ld.pf.r, zc = BC.h + lc.dz0, zd = D.h + ld.dz0, dh = Math.abs(zd - zc);
+  const e = phaseErr(lc, stateOf(BC), ld, stateOf(D));
+  return { d, a, dh, zc, zd, e, engaged: dh === 0 && Math.abs(d - a) <= TOL_D && Math.abs(e) * Math.PI * MOD <= BACKLASH, reach: lc.pf.ra + ld.pf.ra };
+}
+/* Parts linked to p and the ratio of their rotation to p's (signed). */
+function trainFrom(p) {
+  const [A, BC, D] = parts, ratio = new Map([[p, 1]]), q = [p];
+  const belt = beltInfo && beltInfo.fits && beltInfo.clear, mesh = cdState().engaged;
+  const edges = [];
+  if (belt) edges.push([A, BC, 50 / 100], [BC, A, 100 / 50]);
+  if (mesh) edges.push([BC, D, -80 / 200], [D, BC, -200 / 80]);
+  while (q.length) { const a = q.shift(); for (const [x, y, r] of edges) if (x === a && !ratio.has(y)) { ratio.set(y, ratio.get(a) * r); q.push(y); } }
+  return ratio;
+}
+function tryMove(p, tu, tv) {
+  [tu, tv] = clampPos(tu, tv);
+  const s = stateOf(p), at = (u, v) => ({ ...s, u, v });
+  if (!collidesAny(p, at(tu, tv))) { p.u = tu; p.v = tv; syncPart(p); return null; }
+  const reach = (eu, ev) => { let lo = 0, hi = 1; for (let n = 0; n < 14; n++) { const m = (lo + hi) / 2; if (collidesAny(p, at(s.u + (eu - s.u) * m, s.v + (ev - s.v) * m))) hi = m; else lo = m; } return [s.u + (eu - s.u) * lo, s.v + (ev - s.v) * lo]; };
+  let best = [s.u, s.v], bestD = Math.hypot(tu - s.u, tv - s.v);
+  for (const [eu, ev] of [[tu, tv], [tu, s.v], [s.u, tv]]) { const q = reach(eu, ev), dd = Math.hypot(tu - q[0], tv - q[1]); if (dd < bestD - 1e-6) { best = q; bestD = dd; } }
+  const blocker = collidesAny(p, at(tu, tv));
+  p.u = best[0]; p.v = best[1]; syncPart(p); return blocker;
+}
+function tryRotate(p, delta) {
+  const train = trainFrom(p), ov = new Map();
+  for (const [o, k] of train) { const s = stateOf(o); s.theta += delta * k; ov.set(o, s); }
+  for (let i = 0; i < parts.length; i++) for (let j = i + 1; j < parts.length; j++) {
+    const a = parts[i], b = parts[j]; if (!ov.has(a) && !ov.has(b)) continue;
+    if (partsCollide(a, ov.get(a) || stateOf(a), b, ov.get(b) || stateOf(b))) return a === p ? b : a;
+  }
+  for (const [o, s] of ov) { o.theta = s.theta; syncPart(o); }
+  return null;
+}
+function tryLift(p, dir) {
+  const h = Math.max(0, Math.min(p.def.maxH, p.h + dir * LIFT)); if (h === p.h) return 'limit';
+  const s = stateOf(p); s.h = h; const b = collidesAny(p, s); if (b) return b;
+  p.h = h; syncPart(p); return null;
+}
+/* Snap D into mesh with C once the teeth overlap and are within a third of a tooth. */
+function trySeat(p) {
+  if (!snapOn || p.key !== 'D') return null;
+  const BC = parts[1], c = cdState();
+  if (c.dh !== 0 || c.engaged || c.d - c.a > 1.1 * MOD || c.d - c.a < -1 || Math.abs(c.e) > 0.34) return null;
+  const s = { u: BC.u + (p.u - BC.u) / c.d * c.a, v: BC.v + (p.v - BC.v) / c.d * c.a, theta: p.theta + c.e * gearLayer(p).pf.p, h: p.h };
+  // turning D anticlockwise by e·pitch cancels the phase error with C
+  if (!collidesAny(p, s)) { Object.assign(p, s); syncPart(p); return BC; }
+  return null;
+}
+
+/* ----------------------------- validation ----------------------------- */
+function validate() {
+  const [A, BC, D] = parts, issues = [], oks = [];
+  const c = cdState();
+  let msg = null;
+  if (c.dh >= 20) msg = `Gearwheel D is ${c.dh} mm ${c.zd > c.zc ? 'higher' : 'lower'} than pinion C on its shaft, so the teeth can never touch. Gears must run in the same plane.`;
+  else if (c.dh > 0) msg = `Gearwheel D overlaps pinion C by only ${20 - c.dh} mm of the 20 mm face width. Move D along its shaft so both gears share one plane.`;
+  else if (c.d > c.reach + 0.05) msg = `Gearwheel D is too far from pinion C for the teeth to engage. Their centres are ${fmt(c.d)} mm apart and the tooth tips do not reach each other.`;
+  else if (c.d > c.a + TOL_D) msg = Math.abs(c.e) > 0.25
+    ? 'Gear C and gearwheel D are nearly close enough, but their teeth meet tip to tip and cannot slide into mesh. Turn D by part of a tooth, then close the gap.'
+    : 'The teeth of C and D only overlap at their tips. Move the centres closer until the teeth reach full working depth.';
+  else if (!c.engaged) msg = 'The centres of C and D are correctly positioned, but the teeth are not aligned.';
+  (msg ? issues : oks).push({ a: BC, b: D, msg, where: 'mesh' });
+
+  const b = beltInfo || beltState();
+  msg = null;
+  const zB = BC.h + BELT_Z0;
+  if (!b.inPlane) msg = b.partial
+    ? `Flywheel A only partly lines up with Disc B, so the belt would run off. Move A ${A.h < zB ? 'up' : 'down'} its shaft.`
+    : `Flywheel A is not in the belt plane. The belt runs on Disc B, which sits above pinion C. A is ${Math.abs(A.h - zB)} mm too ${A.h < zB ? 'low' : 'high'}.`;
+  else if (b.d < 170) msg = 'Flywheel A is too close to Disc B. The belt needs room to wrap around both pulleys.';
+  else if (b.d > 720) msg = 'Flywheel A is too far from Disc B. The belt and its tensioner only reach 720 mm between centres.';
+  else if (!b.clear) msg = 'The belt would rub against Gearwheel D or its shaft. Move Flywheel A so the belt runs clear.';
+  (msg ? issues : oks).push({ a: A, b: BC, msg, where: 'belt' });
+  return { ok: !issues.length, issues, oks };
+}
+
+/* ------------------------------ markers ------------------------------ */
+function clearMarks() { marks.forEach(m => { m.el.remove(); if (m.line) { scene.remove(m.line); m.line.geometry.dispose(); } }); marks = []; dirty = true; }
+function addMark(is, kind, label) {
+  const { a, b, where } = is;
+  let pu, pv, y;
+  if (where === 'mesh') { const t = 80 / 280; pu = a.u + (b.u - a.u) * t; pv = a.v + (b.v - a.v) * t; y = PART_BASE + a.h + C_Z0 + 26; }
+  else { pu = (a.u + b.u) / 2; pv = (a.v + b.v) / 2; y = PART_BASE + Math.max(a.h + 20, b.h + BELT_Z1) + 8; }
+  const el = document.createElement('div'); el.className = 'mark ' + kind; el.setAttribute('aria-hidden', 'true');
+  el.textContent = kind === 'bad' ? `✕ ${label}` : '✓'; overlay.appendChild(el);
+  const yl = y - 4, geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.u, yl, -a.v), new THREE.Vector3(b.u, yl, -b.v)]);
+  const line = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: kind === 'bad' ? 0xc0392b : 0x23874f, dashSize: 9, gapSize: 6 }));
+  line.computeLineDistances(); scene.add(line);
+  marks.push({ el, line, pos: new THREE.Vector3(pu, y, -pv) });
+}
+
+/* --------------------------- force overlays --------------------------- */
+const forceGroup = new THREE.Group(); scene.add(forceGroup);
+const fArrowOnD = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 70, 0xb33a2c, 18, 10);
+const fArrowOnC = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 70, 0xb33a2c, 18, 10);
+forceGroup.add(fArrowOnD, fArrowOnC); forceGroup.visible = false;
+const flabels = ['F on D', 'F on C', 'T₁ tight', 'T₂ slack'].map(t => { const el = document.createElement('div'); el.className = 'flabel'; el.textContent = t; el.style.display = 'none'; el.setAttribute('aria-hidden', 'true'); overlay.appendChild(el); return { el, pos: new THREE.Vector3(), on: false }; });
+function updateForces() {
+  const on = showForces && run && run.kind === 'spin';
+  forceGroup.visible = on; flabels.forEach(f => f.on = false);
+  if (!on) return;
+  const [A, BC, D] = parts;
+  // Pitch point on the line of centres, at r_C from C.
+  const dx = D.u - BC.u, dy = D.v - BC.v, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d;
+  const pp = { u: BC.u + ux * 80, v: BC.v + uy * 80 }, y = PART_BASE + D.h + 26;
+  // D turns opposite to A. A runs clockwise (sense −1), so D runs anticlockwise (+1).
+  // Velocity of D's rim at the pitch point for CCW rotation: perpendicular to (pp − D), turned +90°.
+  const rx = pp.u - D.u, ry = pp.v - D.v, rl = Math.hypot(rx, ry), tx = -ry / rl, ty = rx / rl;
+  const dirD = new THREE.Vector3(tx, 0, -ty), dirC = dirD.clone().negate();
+  fArrowOnD.position.set(pp.u, y, -pp.v); fArrowOnD.setDirection(dirD);
+  fArrowOnC.position.set(pp.u, y + 12, -pp.v); fArrowOnC.setDirection(dirC);
+  Object.assign(flabels[0], { on: true }); flabels[0].pos.set(pp.u + tx * 80, y, -(pp.v + ty * 80));
+  Object.assign(flabels[1], { on: true }); flabels[1].pos.set(pp.u - tx * 80, y + 12, -(pp.v - ty * 80));
+  // Belt: tight side is the span the clockwise driver A pulls in.
+  if (beltInfo && beltInfo.fits) {
+    const yb = PART_BASE + BC.h + BELT_Z1 + 12;
+    beltInfo.loop.spans.forEach(([p1, p2]) => {
+      const onA = Math.hypot(p1[0] - A.u, p1[1] - A.v) < 60 ? p1 : p2, other = onA === p1 ? p2 : p1;
+      const cx = onA[0] - A.u, cy = onA[1] - A.v, vx = cy, vy = -cx;      // clockwise rim velocity at the tangent point
+      const tight = vx * (onA[0] - other[0]) + vy * (onA[1] - other[1]) > 0;
+      const f = flabels[tight ? 2 : 3]; f.on = true; f.pos.set((p1[0] + p2[0]) / 2, yb, -((p1[1] + p2[1]) / 2));
+    });
+  }
+}
+
+/* ------------------------------ UI text ------------------------------ */
+const statusEl = $('#status'), fb = $('#feedback'), sticky = $('#sticky'), testBtn = $('#test');
+function setStatus(t) { statusEl.textContent = t; }
+function showFeedback(kind, title, html) {
+  const ico = { bad: '✕', ok: '✓', warn: '!', info: 'i' }[kind];
+  fb.className = 'feedback ' + kind;
+  fb.innerHTML = `<p class="fb-title"><span class="fb-ico" aria-hidden="true">${ico}</span><span>${title}</span></p>${html || ''}`;
+}
+function note(lines) {
+  sticky.innerHTML = lines.map(l => `<p>${l}</p>`).join('');
+  sticky.classList.add('flash'); setTimeout(() => sticky.classList.remove('flash'), 260);
+}
+const STEP_TEXT = {
+  1: { title: 'Assemble the drive', html: `
+    <p>Disc B and pinion C run in fixed bearings. Bring the other parts to them:</p>
+    <ol>
+      <li>Mesh gearwheel <b>D</b> with pinion <b>C</b>. Work out the centre distance from the pitch radii, and turn D so its teeth drop into C's gaps.</li>
+      <li>Put flywheel <b>A</b> level with disc <b>B</b>, the lower part of the B + C assembly. The belt fits itself once A is in B's plane and clear of D.</li>
+      <li>Press <b>Test drive</b>. If everything is right, the drive turns and shows the direction of each part.</li>
+    </ol>
+    <p class="small">Check each part's height on its shaft. Two of them start in the wrong place.</p>` },
+  2: { title: 'Analyse the drive', html: `<p>Use the drive you built to reason about speeds and directions, then find the time for D to reach 200 rev/min. Check your working as often as you like. A worked solution unlocks after two checks.</p>` },
+  3: { title: 'Spin it up from rest', html: `<p>Press <b>Start from rest</b>. The torque M = k t<sup>0.5</sup> drives flywheel A. Watch the belt pull and the tooth force grow, and see when D passes 200 rev/min. Your answer from step 2 is drawn on the graph.</p><p class="small">At 3.6 s the motor torque is removed and the frictionless drive coasts.</p>` },
+};
+const STICKY = {
+  1: ['Gearwheel D meshes with Gear C.', 'Flywheel A and Disc B share the belt.'],
+  1.5: ['B and C are connected.', 'They have the same angular velocity.'],
+  2: ['Observe the direction of rotation of each part.'],
+  3: ['Observe the direction of rotation of each part.', 'Remember the tension in the belt.', 'Don’t forget the reaction force between the gears.'],
+};
+
+function renderStep() {
+  document.querySelectorAll('.steps [role=tab]').forEach(b => b.setAttribute('aria-selected', String(+b.dataset.step === step)));
+  for (const n of [1, 2, 3]) $('#done' + n).textContent = done.has(n) ? '✓' : '';
+  $('#stepTitle').textContent = STEP_TEXT[step].title; $('#stepBody').innerHTML = STEP_TEXT[step].html;
+  $('#calcSec').hidden = step !== 2; $('#runSec').hidden = step !== 3;
+  testBtn.textContent = run ? 'Stop' : step === 3 ? 'Start from rest' : 'Test drive';
+  note(STICKY[step === 1 && done.has(1) ? 1.5 : step]);
+  if (step === 3) drawPlot();
+}
+function renderChips() {
+  $('#chips').innerHTML = parts.map((p, i) => `<button class="chip" data-pi="${i}" aria-pressed="${p === selected}"><b>${i + 1}</b> · ${p.name}</button>`).join('');
+}
+function renderProps() {
+  const p = selected; $('#controls').hidden = !p;
+  if (!p) { $('#props').innerHTML = '<p class="small">Click a part, or use the buttons above, to see its properties.</p>'; return; }
+  $('#moveCol').hidden = !!p.def.fixed; $('#liftCol').hidden = !p.def.maxH;
+  const deg = ((-p.theta * 180 / Math.PI) % 360 + 360) % 360;
+  const rows = {
+    A: [['Mass', '0.2 kg'], ['Rim radius r<sub>A</sub>', '50 mm'], ['Radius of gyration', '30 mm']],
+    BC: [['Disc B', '0.3 kg, r = 100 mm'], ['Pinion C', '40 teeth, m = 4 mm'], ['C pitch radius', '80 mm'], ['C tip radius', '84 mm'], ['I<sub>C</sub>', '3 × 10⁻³ kg m²']],
+    D: [['Teeth', '100, m = 4 mm'], ['Pitch radius', '200 mm'], ['Tip radius', '204 mm'], ['I<sub>D</sub>', '0.03 kg m²']],
+  }[p.key];
+  $('#props').innerHTML = `<dl class="props"><dt>Part</dt><dd>${p.name}</dd>${rows.map(r => `<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}
+    <dt>Centre (x, y)</dt><dd>${fmt(p.u)}, ${fmt(p.v)} mm</dd><dt>Angle (clockwise)</dt><dd>${fmt(deg, 2)}°</dd>
+    <dt>Height on shaft</dt><dd>${p.h} mm${p.def.fixed ? ' (fixed)' : ''}</dd></dl>`;
+}
+function renderDist() {
+  const [A, BC, D] = parts;
+  const zB = BC.h + BELT_Z0;
+  $('#dist').innerHTML = `
+    <tr><td>Centres C–D</td><td>${fmt(Math.hypot(D.u - BC.u, D.v - BC.v), 2)} mm</td></tr>
+    <tr><td>Centres A–B</td><td>${fmt(Math.hypot(A.u - BC.u, A.v - BC.v), 2)} mm</td></tr>
+    <tr><td>Height of D vs C</td><td>${(() => { const dd = D.h - (BC.h + C_Z0); return dd === 0 ? 'level' : (dd > 0 ? '+' : '') + dd + ' mm'; })()}</td></tr>
+    <tr><td>Height of A vs B (belt plane)</td><td>${A.h === zB ? 'level' : (A.h - zB > 0 ? '+' : '') + (A.h - zB) + ' mm'}</td></tr>
+    <tr><td>Belt</td><td>${beltInfo && beltInfo.fits ? (beltInfo.clear ? 'fitted' : 'fouls D') : 'not fitted'}</td></tr>`;
+}
+function select(p) {
+  selected = p;
+  parts.forEach(o => { o.mats.forEach(m => m.emissive.setHex(o === p ? 0x0e1f4a : 0)); o.labels.forEach(l => l.el.classList.toggle('sel', o === p)); });
+  renderChips(); renderProps(); dirty = true;
+}
+
+/* ------------------------------ running ------------------------------ */
+function stopRun(msg) {
+  if (!run) return; run = null;
+  parts.forEach(p => p.arrow.visible = false); updateForces();
+  testBtn.classList.remove('running'); renderStepButton();
+  if (msg) setStatus(msg); dirty = true;
+}
+function renderStepButton() { testBtn.textContent = run ? 'Stop' : step === 3 ? 'Start from rest' : 'Test drive'; }
+function startRun(kind) {
+  run = { kind, t0: performance.now(), th0: parts.map(p => p.theta), simT: 0, reached: false };
+  testBtn.classList.add('running'); renderStepButton();
+  const [A, BC, D] = parts;
+  setArrow(A.arrow, A.u, A.v, PART_BASE + A.h + 26, -1);
+  setArrow(BC.arrow, BC.u, BC.v, PART_BASE + BC.h + C_Z0 + 28, -1);
+  setArrow(D.arrow, D.u, D.v, PART_BASE + D.h + 28, 1);
+  updateForces();
+}
+const T_END = 3.6;
+function advance(now) {
+  const [A, BC, D] = parts;
+  let thA;
+  if (run.kind === 'demo') { const t = (now - run.t0) / 1000; thA = -t * 2 * Math.PI * 0.35; }
+  else {
+    const t = (now - run.t0) / 1000 * playback; run.simT = t;
+    thA = t <= T_END ? -PHYS.thA(t) : -(PHYS.thA(T_END) + PHYS.wA(T_END) * (t - T_END));
+    if (!run.reached && t >= PHYS.tTarget) { run.reached = true; onReached(); }
+    updateReadouts(Math.min(t, T_END), t > T_END);
+  }
+  A.theta = run.th0[0] + thA;
+  BC.theta = run.th0[1] + thA * (50 / 100);
+  D.theta = run.th0[2] - thA * (50 / 100) * (80 / 200);
+  parts.forEach(syncPart);
+}
+function rpm(w) { return w * 60 / (2 * Math.PI); }
+function updateReadouts(t, coasting) {
+  const wA = PHYS.wA(t), L = coasting ? { M: 0, beltNet: 0, toothF: 0 } : PHYS.loads(t);
+  $('#rT').textContent = fmt(t, 3) + ' s' + (coasting ? ' (coast)' : '');
+  $('#rM').textContent = fmt(L.M, 3) + ' N m';
+  $('#rA').textContent = fmt(rpm(wA), 0) + ' rev/min';
+  $('#rB').textContent = fmt(rpm(wA * PHYS.nB), 0) + ' rev/min';
+  $('#rD').textContent = fmt(rpm(wA * PHYS.nD), 1) + ' rev/min';
+  $('#rTen').textContent = fmt(L.beltNet, 2) + ' N';
+  $('#rF').textContent = fmt(L.toothF, 2) + ' N';
+  drawPlot(t);
+}
+function predictedT() { const v = parseFloat($('#q6').value); return isFinite(v) && v > 0 ? v : null; }
+function onReached() {
+  const tp = predictedT(), tt = PHYS.tTarget;
+  done.add(3); renderStep();
+  const diff = tp ? Math.abs(tp - tt) / tt : null;
+  showFeedback(diff !== null && diff <= 0.02 ? 'ok' : 'warn', `Gearwheel D reached 200 rev/min at t = ${fmt(tt, 2)} s.`,
+    tp ? `<p>Your prediction was ${fmtT(tp, 3)} s, ${diff <= 0.02 ? 'within 2% of the simulation.' : `off by ${fmt(Math.abs(tp - tt), 2)} s. Revisit the equivalent inertia and the integration of M = k t<sup>0.5</sup>.`}</p>`
+      : '<p>Add your time in step 2 to compare it with the simulation.</p>');
+  note(['D reached 200 rev/min at t = ' + fmt(tt, 2) + ' s.', 'Remember the tension in the belt.', 'Don’t forget the reaction force between the gears.']);
+  setStatus(`Gearwheel D reached 200 rev/min at ${fmt(tt, 2)} seconds.`);
+}
+
+/* ------------------------------ plot ------------------------------ */
+const plot = $('#plot');
+function drawPlot(tNow) {
+  const w = plot.clientWidth, h = plot.clientHeight; if (!w || !h) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (plot.width !== Math.round(w * dpr)) { plot.width = Math.round(w * dpr); plot.height = Math.round(h * dpr); }
+  const x = plot.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  const m = { l: 44, r: 10, t: 10, b: 30 }, W = w - m.l - m.r, H = h - m.t - m.b, TX = 4, TY = 300;
+  const X = t => m.l + t / TX * W, Y = r => m.t + H - r / TY * H;
+  x.font = '11px "Courier Prime", monospace'; x.fillStyle = '#575d64'; x.strokeStyle = 'rgba(80,110,140,.18)'; x.lineWidth = 1;
+  for (let t = 0; t <= TX; t += 0.5) { x.beginPath(); x.moveTo(X(t), m.t); x.lineTo(X(t), m.t + H); x.stroke(); if (t % 1 === 0) { x.textAlign = 'center'; x.fillText(t + ' s', X(t), m.t + H + 16); } }
+  for (let r = 0; r <= TY; r += 50) { x.beginPath(); x.moveTo(m.l, Y(r)); x.lineTo(m.l + W, Y(r)); x.stroke(); if (r % 100 === 0) { x.textAlign = 'right'; x.fillText(String(r), m.l - 6, Y(r) + 4); } }
+  x.save(); x.translate(11, m.t + H / 2); x.rotate(-Math.PI / 2); x.textAlign = 'center'; x.fillText('ω_D  rev/min', 0, 0); x.restore();
+  const curve = (t0, t1, style, width) => { x.strokeStyle = style; x.lineWidth = width; x.beginPath(); for (let i = 0; i <= 120; i++) { const t = t0 + (t1 - t0) * i / 120; const r = rpm(t <= T_END ? PHYS.wA(t) * PHYS.nD : PHYS.wA(T_END) * PHYS.nD); i ? x.lineTo(X(t), Y(Math.min(r, TY))) : x.moveTo(X(t), Y(Math.min(r, TY))); } x.stroke(); };
+  curve(0, TX, 'rgba(31,73,166,.18)', 2);
+  x.setLineDash([6, 4]); x.strokeStyle = '#1c1f23'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(m.l, Y(200)); x.lineTo(m.l + W, Y(200)); x.stroke();
+  const tp = predictedT();
+  if (tp && tp <= TX) { x.strokeStyle = '#c27c00'; x.lineWidth = 1.6; x.beginPath(); x.moveTo(X(tp), m.t); x.lineTo(X(tp), m.t + H); x.stroke(); }
+  x.setLineDash([]);
+  if (tNow) curve(0, Math.min(tNow, TX), '#1f49a6', 2.6);
+  if (run && run.reached || done.has(3)) {
+    const tt = PHYS.tTarget; x.fillStyle = '#1f49a6'; x.beginPath(); x.arc(X(tt), Y(200), 4.5, 0, Math.PI * 2); x.fill();
+    x.fillStyle = '#1c1f23'; x.textAlign = 'left'; x.font = 'bold 11.5px "Courier Prime", monospace'; x.fillText(`${fmt(tt, 2)} s`, X(tt) + 7, Y(200) - 7);
+  }
+}
+
+/* ------------------------------ test ------------------------------ */
+function testDrive() {
+  if (run) { stopRun('Drive stopped.'); return; }
+  const res = validate(); clearMarks();
+  res.oks.forEach(o => addMark(o, 'ok'));
+  if (!res.ok) {
+    failedTests++;
+    res.issues.forEach((is, n) => addMark(is, 'bad', n + 1));
+    const list = res.issues.map((is, n) => `<li><span class="num" aria-hidden="true">${n + 1}</span><span><span class="sr">Problem ${n + 1}: </span>${is.msg}</span></li>`).join('');
+    const hint = failedTests >= 2 ? `<p class="small"><b>Hint.</b> Two external spur gears mesh when their pitch circles just touch, so centre distance = r<sub>C</sub> + r<sub>D</sub>. Select a part to see its radii.</p>` : '';
+    showFeedback('bad', `The drive won't turn. ${res.issues.length === 1 ? '1 problem' : res.issues.length + ' problems'} found.`, `<p class="small">Numbered markers in the workspace show where.</p><ul class="issues">${list}</ul>${hint}`);
+    setStatus('Test failed. Nothing turned.');
+    return;
+  }
+  if (step === 3) {
+    startRun('spin');
+    showFeedback('info', 'Spinning up from rest…', `<p>Playback is ${playback === 1 ? 'real time' : playback + ' × real time'}. Force labels show the belt's tight side and the tooth force at the mesh.</p>`);
+    setStatus('Drive started from rest.');
+    return;
+  }
+  const first = !done.has(1); done.add(1);
+  startRun('demo'); renderStep();
+  note(STICKY[1.5]);
+  showFeedback('ok', 'The drive turns.', `<p>Flywheel A drives Disc B through the belt. B and pinion C are one part, so they share an angular velocity. C drives gearwheel D.</p>
+    <p>Look at the arrows: A and B turn the same way (open belt) and D turns the opposite way (external mesh). ${first ? 'Go to step 2 to analyse it.' : ''}</p>`);
+  setStatus('Test passed. The drive is turning slowly so you can see the directions.');
+}
+
+/* ---------------------------- analysis ---------------------------- */
+const ANSWERS = [
+  { id: 1, val: 2, tol: 0.01, hint: 'The belt does not slip, so both rims move at the same speed: ω<sub>A</sub> r<sub>A</sub> = ω<sub>B</sub> r<sub>B</sub>.' },
+  { id: 2, val: 2.5, tol: 0.01, hint: 'At the mesh the pitch circles roll together: ω<sub>C</sub> r<sub>C</sub> = ω<sub>D</sub> r<sub>D</sub>.' },
+  { id: 3, val: 'opp', hint: 'Observe the direction of rotation of each part. An open belt keeps the direction; an external mesh reverses it.' },
+  { id: 4, val: 0.18, tol: 0.01, hint: 'Use the radius of gyration, not the rim radius: I = m k².' },
+  { id: 5, val: PHYS.Ieq * 1000, tol: 0.01, hint: 'Refer each inertia to shaft A by multiplying by (ω/ω<sub>A</sub>)². B is a uniform disc (½ m r²), and C’s inertia adds to B’s because they share ω.' },
+  { id: 6, val: PHYS.tTarget, tol: 0.015, hint: 'M = I<sub>eq</sub> dω<sub>A</sub>/dt with M = k t<sup>0.5</sup>. Integrate from rest, and convert 200 rev/min of D into ω<sub>A</sub> in rad/s first.' },
+];
+$('#calc').addEventListener('submit', e => {
+  e.preventDefault(); checks++;
+  let right = 0, firstWrong = null;
+  for (const a of ANSWERS) {
+    const el = $('#q' + a.id), v = $('#v' + a.id), raw = el.value.trim();
+    if (!raw) { v.className = 'verdict'; v.textContent = ''; continue; }
+    const ok = typeof a.val === 'string' ? raw === a.val : Math.abs(parseFloat(raw) - a.val) <= a.tol * Math.abs(a.val);
+    v.className = 'verdict ' + (ok ? 'ok' : 'bad'); v.innerHTML = ok ? '✓ Correct' : '✕ Not yet. ' + (checks >= 2 ? a.hint : 'Try again.');
+    if (ok) right++; else if (!firstWrong) firstWrong = a;
+  }
+  if (checks >= 2) $('#work').hidden = false;
+  if (right === ANSWERS.length) { done.add(2); renderStep(); showFeedback('ok', 'All six answers are correct.', '<p>Go to step 3 and spin the drive up from rest to see your time confirmed.</p>'); }
+  else {
+    const n = ANSWERS.filter(a => $('#q' + a.id).value.trim()).length;
+    showFeedback(right ? 'warn' : 'bad', `${right} of ${n} answered correctly.`, checks < 2 ? '<p>Have another go. Hints appear on the next check.</p>' : '<p>Hints are shown under each item. The worked solution is now available below the form.</p>');
+    if (firstWrong && checks >= 2) note([firstWrong.hint.replace(/<[^>]+>/g, '')]);
+  }
+});
+$('#q6').addEventListener('input', () => { if (step === 3) drawPlot(run && run.simT); });
+
+/* ---------------------------- setup ---------------------------- */
+function resetParts() {
+  stopRun(); parts.forEach(p => { scene.remove(p.group, p.shaft, p.arrow); p.labels.forEach(l => l.el.remove()); });
+  pickables.length = 0;
+  parts = DEFS.map((_, i) => createPart(i));
+  parts.forEach((p, i) => { Object.assign(p, START[i]); p.theta = Math.random() * Math.PI * 2; syncPart(p); });
+  beltKey = '___'; updateBelt(); clearMarks(); select(null); renderDist();
+}
+function afterChange() { if (run && run.kind === 'demo') stopRun(); updateBelt(); clearMarks(); renderDist(); if (selected) renderProps(); }
+
+/* ---------------------------- interaction ---------------------------- */
+const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function setRay(e) { const r = renderer.domElement.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); raycaster.setFromCamera(ndc, camera); }
+function pick(e) { setRay(e); const hit = raycaster.intersectObjects(pickables, false)[0]; return hit ? hit.object.userData.part : null; }
+function planePoint(e, y) { setRay(e); const o = new THREE.Vector3(); return raycaster.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), o) ? { u: o.x, v: -o.z } : null; }
+
+stage.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const p = pick(e); if (!p) return;
+  e.stopPropagation(); e.preventDefault(); stage.focus({ preventScroll: true });
+  if (run) stopRun('Drive stopped so you can adjust it.');
+  select(p);
+  const rot = e.shiftKey || mode === 'rotate';
+  if (!rot && p.def.fixed) { setStatus('Disc B and pinion C turn in fixed bearings. Bring the other parts to them, or switch to Rotate.'); return; }
+  const top = PART_BASE + p.h + Math.max(...p.def.layers.map(l => l.dz1)), q = planePoint(e, top); if (!q) return;
+  drag = { p, rot, top, off: [q.u - p.u, q.v - p.v], last: Math.atan2(q.v - p.v, q.u - p.u), blocked: null };
+  renderer.domElement.style.cursor = 'grabbing';
+  window.addEventListener('pointermove', onDrag); window.addEventListener('pointerup', endDrag); window.addEventListener('pointercancel', endDrag);
+}, { capture: true });
+function onDrag(e) {
+  const p = drag.p, q = planePoint(e, drag.top); if (!q) return;
+  if (drag.rot) { const a = Math.atan2(q.v - p.v, q.u - p.u), da = wrapHalf((a - drag.last) / (2 * Math.PI)) * 2 * Math.PI; drag.last = a; drag.blocked = tryRotate(p, da); }
+  else drag.blocked = tryMove(p, q.u - drag.off[0], q.v - drag.off[1]);
+  afterChange();
+}
+function endDrag() {
+  window.removeEventListener('pointermove', onDrag); window.removeEventListener('pointerup', endDrag); window.removeEventListener('pointercancel', endDrag);
+  const p = drag.p, seated = !drag.rot || p.key === 'D' ? trySeat(p) : null;
+  if (seated) setStatus('Gearwheel D slid into mesh with pinion C.');
+  else if (drag.blocked) setStatus(drag.rot ? `${p.name} can't turn further: it jams against ${drag.blocked.name}.` : `${p.name} stopped against ${drag.blocked.name}.`);
+  else setStatus(`${p.name} at ${fmt(p.u)}, ${fmt(p.v)} mm.`);
+  drag = null; renderer.domElement.style.cursor = ''; afterChange();
+}
+let hoverQ = false;
+stage.addEventListener('pointermove', e => { if (drag || hoverQ) return; hoverQ = true; requestAnimationFrame(() => { hoverQ = false; renderer.domElement.style.cursor = pick(e) ? 'grab' : ''; }); });
+
+function act(kind, sign) {
+  const p = selected; if (!p) { setStatus('Select a part first (keys 1, 2, 3).'); return; }
+  if (run) stopRun();
+  const st = STEPS[stepSize]; let msg = '';
+  if (kind === 'x' || kind === 'y') {
+    if (p.def.fixed) { setStatus('Disc B and pinion C turn in fixed bearings and cannot be moved.'); return; }
+    const b = tryMove(p, p.u + (kind === 'x' ? sign * st.mm : 0), p.v + (kind === 'y' ? sign * st.mm : 0));
+    msg = b ? `${p.name} blocked by ${b.name}.` : `${p.name} at ${fmt(p.u)}, ${fmt(p.v)} mm.`;
+  } else if (kind === 'rot') {
+    const b = tryRotate(p, sign * st.deg * Math.PI / 180);
+    msg = b ? `${p.name} can't turn: it jams against ${b.name}.` : `${p.name} turned ${sign < 0 ? 'clockwise' : 'anticlockwise'} ${st.deg}°.`;
+  } else {
+    if (!p.def.maxH) { setStatus(`${p.name} is fixed at its height.`); return; }
+    const r = tryLift(p, sign);
+    msg = r === 'limit' ? `${p.name} is already at the ${sign > 0 ? 'top' : 'bottom'} of its shaft.` : r ? `${p.name} can't move there: it would hit ${r.name}.` : `${p.name} is now ${p.h} mm up its shaft.`;
+  }
+  const seated = kind !== 'h' ? trySeat(p) : null;
+  setStatus(seated ? 'Gearwheel D slid into mesh with pinion C.' : msg);
+  afterChange();
+}
+document.addEventListener('keydown', e => {
+  const tg = e.target; if (tg.matches && tg.matches('input, select, textarea')) return;
+  if (e.ctrlKey || e.metaKey) return;
+  const k = e.key;
+  if (['1', '2', '3'].includes(k)) { select(parts[+k - 1]); setStatus(`${selected.name} selected.`); e.preventDefault(); return; }
+  if (k === 't' || k === 'T') { testDrive(); e.preventDefault(); return; }
+  if (k === 'Escape') { select(null); return; }
+  if (!selected) return;
+  const prev = stepSize; if (e.shiftKey) stepSize = 'coarse'; else if (e.altKey) stepSize = 'fine';
+  const map = { ArrowLeft: ['x', -1], ArrowRight: ['x', 1], ArrowUp: ['y', 1], ArrowDown: ['y', -1], q: ['rot', 1], Q: ['rot', 1], e: ['rot', -1], E: ['rot', -1], PageUp: ['h', 1], PageDown: ['h', -1] };
+  if (map[k]) { e.preventDefault(); act(...map[k]); }
+  stepSize = prev;
+});
+$('#mvLeft').onclick = () => act('x', -1); $('#mvRight').onclick = () => act('x', 1);
+$('#mvUp').onclick = () => act('y', 1); $('#mvDown').onclick = () => act('y', -1);
+$('#rotACW').onclick = () => act('rot', 1); $('#rotCW').onclick = () => act('rot', -1);
+$('#raise').onclick = () => act('h', 1); $('#lower').onclick = () => act('h', -1);
+document.querySelectorAll('[data-stepsize]').forEach(b => b.onclick = () => { stepSize = b.dataset.stepsize; document.querySelectorAll('[data-stepsize]').forEach(o => o.setAttribute('aria-pressed', String(o === b))); });
+$('#chips').addEventListener('click', e => { const b = e.target.closest('[data-pi]'); if (b) { select(parts[+b.dataset.pi]); setStatus(`${selected.name} selected.`); } });
+function setMode(m) { mode = m; $('#modeMove').setAttribute('aria-pressed', String(m === 'move')); $('#modeRotate').setAttribute('aria-pressed', String(m === 'rotate')); }
+$('#modeMove').onclick = () => setMode('move'); $('#modeRotate').onclick = () => setMode('rotate');
+$('#snap').onchange = e => { snapOn = e.target.checked; setStatus(snapOn ? 'Snap into mesh is on.' : 'Snap into mesh is off. Position and align the teeth by hand.'); };
+$('#forces').onchange = e => { showForces = e.target.checked; updateForces(); dirty = true; };
+$('#speed').onchange = e => {
+  const np = +e.target.value;
+  if (run && run.kind === 'spin') { const t = (performance.now() - run.t0) / 1000 * playback; run.t0 = performance.now() - t / np * 1000; }
+  playback = np;
+};
+$('#reset').onclick = () => { resetParts(); showFeedback('info', 'Parts returned to the bench.', '<p>Assemble the drive again, then test it.</p>'); setStatus('Parts reset.'); };
+testBtn.onclick = testDrive;
+document.querySelectorAll('.steps [role=tab]').forEach(b => b.onclick = () => {
+  const n = +b.dataset.step;
+  if (n === 3 && !done.has(1)) { showFeedback('warn', 'Assemble the drive first', '<p>Step 3 runs the drive you build in step 1. Get it to pass the test, then come back.</p>'); }
+  if (run) stopRun();
+  step = n; renderStep();
+  if (n === 2) showFeedback('info', 'Work through the questions', '<p>Enter values as decimals. Inertias are in units of 10⁻³ kg m².</p>');
+  if (n === 3 && done.has(1)) showFeedback('info', 'Ready to spin up', `<p>${predictedT() ? `Your prediction: ${fmtT(predictedT(), 3)} s.` : 'No time entered in step 2 yet. You can still run the test.'}</p>`);
+});
+function camTo(v) { camera.position.copy(v); controls.target.set(v === VIEW_TOP ? 40 : 40, 0, 0); controls.update(); dirty = true; }
+$('#viewAngled').onclick = () => camTo(VIEW_ANGLED); $('#viewTop').onclick = () => camTo(VIEW_TOP);
+function zoom(f) { const d = camera.position.clone().sub(controls.target); camera.position.copy(controls.target).add(d.setLength(Math.max(controls.minDistance, Math.min(controls.maxDistance, d.length() * f)))); controls.update(); dirty = true; }
+$('#zoomIn').onclick = () => zoom(0.82); $('#zoomOut').onclick = () => zoom(1.22);
+
+/* ---------------------------- render loop ---------------------------- */
+const tmp = new THREE.Vector3();
+function place(el, v3, w, h, center) {
+  tmp.copy(v3).project(camera); const hide = tmp.z > 1 || tmp.z < -1; el.style.display = hide ? 'none' : '';
+  if (!hide) el.style.transform = `translate(${(tmp.x + 1) / 2 * w}px, ${(1 - tmp.y) / 2 * h}px) translate(${center ? '-50%, -50%' : '0, -50%'})`;
+}
+function resize() { const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); dirty = true; if (step === 3) drawPlot(run && run.simT); }
+new ResizeObserver(resize).observe(stage);
+controls.addEventListener('change', () => dirty = true);
+const selRing = new THREE.Mesh(new THREE.RingGeometry(1, 1.03, 128), new THREE.MeshBasicMaterial({ color: 0x1f49a6, transparent: true, opacity: 0.8, side: THREE.DoubleSide }));
+selRing.rotation.x = -Math.PI / 2; scene.add(selRing);
+
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (run) { advance(now); updateForces(); }
+  controls.update();
+  if (!dirty && !run) return;
+  dirty = false;
+  placeTicks();
+  if (selected) { const R = Math.max(...selected.layers.map(l => l.R)); selRing.visible = true; selRing.position.set(selected.u, 0.6, -selected.v); selRing.scale.setScalar(R + 8); } else selRing.visible = false;
+  renderer.render(scene, camera);
+  const w = stage.clientWidth, h = stage.clientHeight;
+  parts.forEach(p => p.labels.forEach(({ el, lb }) => {
+    const y = PART_BASE + p.h + (lb.top ? Math.max(...p.def.layers.map(l => l.dz1)) + 4 : 10);
+    place(el, new THREE.Vector3(p.u + lb.du, y, -(p.v + lb.dv)), w, h, !!lb.top);
+  }));
+  marks.forEach(m => place(m.el, m.pos, w, h, true));
+  flabels.forEach(f => { f.el.style.display = f.on ? '' : 'none'; if (f.on) place(f.el, f.pos, w, h, true); });
+}
+
+resetParts();
+renderStep();
+showFeedback('info', 'Build the drive', '<p>Assemble the parts on the bench, then press Test drive.</p>');
+resize();
+requestAnimationFrame(frame);
+</script>
+
+</body></html>
